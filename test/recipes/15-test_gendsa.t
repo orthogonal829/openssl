@@ -19,7 +19,7 @@ setup("test_gendsa");
 plan skip_all => "This test is unsupported in a no-dsa build"
     if disabled("dsa");
 
-plan tests => 8;
+plan tests => 11;
 
 ok(run(app([ 'openssl', 'genpkey', '-genparam',
              '-algorithm', 'DSA',
@@ -36,9 +36,24 @@ ok(run(app([ 'openssl', 'genpkey', '-genparam',
 
 ok(run(app([ 'openssl', 'genpkey', '-genparam',
              '-algorithm', 'DSA',
+             '-pkeyopt', 'pbits:2048',
+             '-pkeyopt', 'qbits:224',
+             '-pkeyopt', 'digest:SHA512-256',
+             '-pkeyopt', 'type:fips186_4'])),
+   "genpkey DSA params fips186_4 with truncated SHA");
+
+ok(run(app([ 'openssl', 'genpkey', '-genparam',
+             '-algorithm', 'DSA',
              '-pkeyopt', 'type:fips186_2',
              '-text'])),
    "genpkey DSA params fips186_2");
+
+ok(run(app([ 'openssl', 'genpkey', '-genparam',
+             '-algorithm', 'DSA',
+             '-pkeyopt', 'type:fips186_2',
+             '-pkeyopt', 'dsa_paramgen_bits:1024',
+             '-out', 'dsagen.legacy.pem'])),
+   "genpkey DSA params fips186_2 PEM");
 
 ok(!run(app([ 'openssl', 'genpkey', '-algorithm', 'DSA',
              '-pkeyopt', 'type:group',
@@ -62,10 +77,17 @@ ok(run(app([ 'openssl', 'genpkey', '-genparam',
              '-out', 'dsagen.der'])),
    "genpkey DSA params fips186_4 DER");
 
+ok(run(app([ 'openssl', 'genpkey',
+             '-paramfile', 'dsagen.legacy.pem',
+             '-pkeyopt', 'type:fips186_2',
+             '-text'])),
+   "genpkey DSA fips186_2 with PEM params");
+
 # The seed and counter should be the ones generated from the param generation
 # Just put some dummy ones in to show it works.
 ok(run(app([ 'openssl', 'genpkey',
              '-paramfile', 'dsagen.der',
+             '-pkeyopt', 'type:fips186_4',
              '-pkeyopt', 'gindex:1',
              '-pkeyopt', 'hexseed:0102030405060708090A0B0C0D0E0F1011121314',
              '-pkeyopt', 'pcounter:25',

@@ -7,7 +7,6 @@
  * https://www.openssl.org/source/license.html
  */
 
-#include <internal/cryptlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -58,6 +57,7 @@ static void warn_deprecated(const FUNCTION *fp)
 
 static int apps_startup(void)
 {
+    const char *use_libctx = NULL;
 #ifdef SIGPIPE
     signal(SIGPIPE, SIG_IGN);
 #endif
@@ -67,13 +67,28 @@ static int apps_startup(void)
                           | OPENSSL_INIT_LOAD_CONFIG, NULL))
         return 0;
 
-    setup_ui_method();
+    (void)setup_ui_method();
+
+    /*
+     * NOTE: This is an undocumented feature required for testing only.
+     * There are no guarantees that it will exist in future builds.
+     */
+    use_libctx = getenv("OPENSSL_TEST_LIBCTX");
+    if (use_libctx != NULL) {
+        /* Set this to "1" to create a global libctx */
+        if (strcmp(use_libctx, "1") == 0) {
+            if (app_create_libctx() == NULL)
+                return 0;
+        }
+    }
 
     return 1;
 }
 
 static void apps_shutdown(void)
 {
+    app_providers_cleanup();
+    OSSL_LIB_CTX_free(app_get0_libctx());
     destroy_ui_method();
 }
 
@@ -94,8 +109,10 @@ static size_t internal_trace_cb(const char *buf, size_t cnt,
 
     switch (cmd) {
     case OSSL_TRACE_CTRL_BEGIN:
-        if (!ossl_assert(!trace_data->ingroup))
+        if (trace_data->ingroup) {
+            BIO_printf(bio_err, "ERROR: tracing already started\n");
             return 0;
+        }
         trace_data->ingroup = 1;
 
         tid = CRYPTO_THREAD_get_current_id();
@@ -107,14 +124,18 @@ static size_t internal_trace_cb(const char *buf, size_t cnt,
         BIO_set_prefix(trace_data->bio, buffer);
         break;
     case OSSL_TRACE_CTRL_WRITE:
-        if (!ossl_assert(trace_data->ingroup))
+        if (!trace_data->ingroup) {
+            BIO_printf(bio_err, "ERROR: writing when tracing not started\n");
             return 0;
+        }
 
         ret = BIO_write(trace_data->bio, buf, cnt);
         break;
     case OSSL_TRACE_CTRL_END:
-        if (!ossl_assert(trace_data->ingroup))
+        if (!trace_data->ingroup) {
+            BIO_printf(bio_err, "ERROR: finishing when tracing not started\n");
             return 0;
+        }
         trace_data->ingroup = 0;
 
         BIO_set_prefix(trace_data->bio, NULL);
@@ -205,6 +226,8 @@ static void setup_trace(const char *str)
 }
 #endif /* OPENSSL_NO_TRACE */
 
+static char *help_argv[] = { "help", NULL };
+
 int main(int argc, char *argv[])
 {
     FUNCTION f, *fp;
@@ -268,10 +291,9 @@ int main(int argc, char *argv[])
     /* If there's a command, run with that, otherwise "help". */
     ret = argc > 0
         ? do_cmd(prog, argc, argv)
-        : help_main(argc, argv);
+        : do_cmd(prog, 1, help_argv);
 
  end:
-    app_providers_cleanup();
     OPENSSL_free(default_config_file);
     lh_FUNCTION_free(prog);
     OPENSSL_free(arg.argv);
@@ -308,6 +330,7 @@ int help_main(int argc, char **argv)
     char *prog;
     HELP_CHOICE o;
     DISPLAY_COLUMNS dc;
+    char *new_argv[3];
 
     prog = opt_init(argc, argv, help_options);
     while ((o = opt_next()) != OPT_hEOF) {
@@ -323,8 +346,6 @@ int help_main(int argc, char **argv)
     }
 
     if (opt_num_rest() == 1) {
-        char *new_argv[3];
-
         new_argv[0] = opt_rest()[0];
         new_argv[1] = "--help";
         new_argv[2] = NULL;

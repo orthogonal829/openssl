@@ -12,11 +12,7 @@
 #include <openssl/err.h>
 #include <openssl/ess.h>
 #include "crypto/ess.h"
-
-DEFINE_STACK_OF(ESS_CERT_ID)
-DEFINE_STACK_OF(ESS_CERT_ID_V2)
-DEFINE_STACK_OF(GENERAL_NAME)
-DEFINE_STACK_OF(X509)
+#include "crypto/x509.h"
 
 static ESS_CERT_ID *ESS_CERT_ID_new_init(X509 *cert, int issuer_needed);
 static ESS_CERT_ID_V2 *ESS_CERT_ID_V2_new_init(const EVP_MD *hash_alg,
@@ -50,7 +46,7 @@ ESS_SIGNING_CERT *ESS_SIGNING_CERT_new_init(X509 *signcert,
  err:
     ESS_SIGNING_CERT_free(sc);
     ESS_CERT_ID_free(cid);
-    ESSerr(ESS_F_ESS_SIGNING_CERT_NEW_INIT, ERR_R_MALLOC_FAILURE);
+    ERR_raise(ERR_LIB_ESS, ERR_R_MALLOC_FAILURE);
     return NULL;
 }
 
@@ -61,7 +57,7 @@ static ESS_CERT_ID *ESS_CERT_ID_new_init(X509 *cert, int issuer_needed)
     unsigned char cert_sha1[SHA_DIGEST_LENGTH];
 
     /* Call for side-effect of computing hash and caching extensions */
-    if (!X509v3_cache_extensions(cert, NULL, NULL))
+    if (!x509v3_cache_extensions(cert))
         return NULL;
 
     if ((cid = ESS_CERT_ID_new()) == NULL)
@@ -89,14 +85,14 @@ static ESS_CERT_ID *ESS_CERT_ID_new_init(X509 *cert, int issuer_needed)
     name = NULL;            /* Ownership is lost. */
     ASN1_INTEGER_free(cid->issuer_serial->serial);
     if ((cid->issuer_serial->serial =
-          ASN1_INTEGER_dup(X509_get_serialNumber(cert))) == NULL)
+          ASN1_INTEGER_dup(X509_get0_serialNumber(cert))) == NULL)
         goto err;
 
     return cid;
  err:
     GENERAL_NAME_free(name);
     ESS_CERT_ID_free(cid);
-    ESSerr(ESS_F_ESS_CERT_ID_NEW_INIT, ERR_R_MALLOC_FAILURE);
+    ERR_raise(ERR_LIB_ESS, ERR_R_MALLOC_FAILURE);
     return NULL;
 }
 
@@ -131,7 +127,7 @@ ESS_SIGNING_CERT_V2 *ESS_SIGNING_CERT_V2_new_init(const EVP_MD *hash_alg,
  err:
     ESS_SIGNING_CERT_V2_free(sc);
     ESS_CERT_ID_V2_free(cid);
-    ESSerr(ESS_F_ESS_SIGNING_CERT_V2_NEW_INIT, ERR_R_MALLOC_FAILURE);
+    ERR_raise(ERR_LIB_ESS, ERR_R_MALLOC_FAILURE);
     return NULL;
 }
 
@@ -183,7 +179,7 @@ static ESS_CERT_ID_V2 *ESS_CERT_ID_V2_new_init(const EVP_MD *hash_alg,
         goto err;
     name = NULL;            /* Ownership is lost. */
     ASN1_INTEGER_free(cid->issuer_serial->serial);
-    cid->issuer_serial->serial = ASN1_INTEGER_dup(X509_get_serialNumber(cert));
+    cid->issuer_serial->serial = ASN1_INTEGER_dup(X509_get0_serialNumber(cert));
     if (cid->issuer_serial->serial == NULL)
         goto err;
 
@@ -192,7 +188,7 @@ static ESS_CERT_ID_V2 *ESS_CERT_ID_V2_new_init(const EVP_MD *hash_alg,
     X509_ALGOR_free(alg);
     GENERAL_NAME_free(name);
     ESS_CERT_ID_V2_free(cid);
-    ESSerr(ESS_F_ESS_CERT_ID_V2_NEW_INIT, ERR_R_MALLOC_FAILURE);
+    ERR_raise(ERR_LIB_ESS, ERR_R_MALLOC_FAILURE);
     return NULL;
 }
 
@@ -228,13 +224,13 @@ int ESS_SIGNING_CERT_add(PKCS7_SIGNER_INFO *si, ESS_SIGNING_CERT *sc)
 
     len = i2d_ESS_SIGNING_CERT(sc, NULL);
     if ((pp = OPENSSL_malloc(len)) == NULL) {
-        ESSerr(ESS_F_ESS_SIGNING_CERT_ADD, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_ESS, ERR_R_MALLOC_FAILURE);
         goto err;
     }
     p = pp;
     i2d_ESS_SIGNING_CERT(sc, &p);
     if ((seq = ASN1_STRING_new()) == NULL || !ASN1_STRING_set(seq, pp, len)) {
-        ESSerr(ESS_F_ESS_SIGNING_CERT_ADD, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_ESS, ERR_R_MALLOC_FAILURE);
         goto err;
     }
     OPENSSL_free(pp);
@@ -257,14 +253,14 @@ int ESS_SIGNING_CERT_V2_add(PKCS7_SIGNER_INFO *si,
     int len = i2d_ESS_SIGNING_CERT_V2(sc, NULL);
 
     if ((pp = OPENSSL_malloc(len)) == NULL) {
-        ESSerr(ESS_F_ESS_SIGNING_CERT_V2_ADD, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_ESS, ERR_R_MALLOC_FAILURE);
         goto err;
     }
 
     p = pp;
     i2d_ESS_SIGNING_CERT_V2(sc, &p);
     if ((seq = ASN1_STRING_new()) == NULL || !ASN1_STRING_set(seq, pp, len)) {
-        ESSerr(ESS_F_ESS_SIGNING_CERT_V2_ADD, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_ESS, ERR_R_MALLOC_FAILURE);
         goto err;
     }
 
@@ -304,7 +300,7 @@ int ess_find_cert(const STACK_OF(ESS_CERT_ID) *cert_ids, X509 *cert)
         return -1;
 
     /* Recompute SHA1 hash of certificate if necessary (side effect). */
-    if (!X509v3_cache_extensions(cert, NULL, NULL))
+    if (!x509v3_cache_extensions(cert))
         return -1;
 
     /* TODO(3.0): fetch sha1 algorithm from providers */
@@ -339,7 +335,9 @@ int ess_find_cert_v2(const STACK_OF(ESS_CERT_ID_V2) *cert_ids, const X509 *cert)
         const ESS_CERT_ID_V2 *cid = sk_ESS_CERT_ID_V2_value(cert_ids, i);
         const EVP_MD *md;
 
-        if (cid != NULL && cid->hash_alg != NULL)
+        if (cid == NULL)
+            return -1;
+        if (cid->hash_alg != NULL)
             md = EVP_get_digestbyobj(cid->hash_alg->algorithm);
         else
             md = EVP_sha256();

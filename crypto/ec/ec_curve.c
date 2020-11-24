@@ -18,6 +18,7 @@
 #include "ec_local.h"
 #include <openssl/err.h>
 #include <openssl/obj_mac.h>
+#include <openssl/objects.h>
 #include <openssl/opensslconf.h>
 #include "internal/nelem.h"
 #include "e_os.h" /* strcasecmp required by windows */
@@ -3179,7 +3180,8 @@ int ec_curve_name2nid(const char *name)
     return NID_undef;
 }
 
-static EC_GROUP *ec_group_new_from_data(OPENSSL_CTX *libctx,
+static EC_GROUP *ec_group_new_from_data(OSSL_LIB_CTX *libctx,
+                                        const char *propq,
                                         const ec_list_element curve)
 {
     EC_GROUP *group = NULL;
@@ -3195,11 +3197,11 @@ static EC_GROUP *ec_group_new_from_data(OPENSSL_CTX *libctx,
 
     /* If no curve data curve method must handle everything */
     if (curve.data == NULL)
-        return ec_group_new_ex(libctx,
+        return ec_group_new_ex(libctx, propq,
                                curve.meth != NULL ? curve.meth() : NULL);
 
     if ((ctx = BN_CTX_new_ex(libctx)) == NULL) {
-        ECerr(EC_F_EC_GROUP_NEW_FROM_DATA, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_EC, ERR_R_MALLOC_FAILURE);
         goto err;
     }
 
@@ -3212,20 +3214,20 @@ static EC_GROUP *ec_group_new_from_data(OPENSSL_CTX *libctx,
     if ((p = BN_bin2bn(params + 0 * param_len, param_len, NULL)) == NULL
         || (a = BN_bin2bn(params + 1 * param_len, param_len, NULL)) == NULL
         || (b = BN_bin2bn(params + 2 * param_len, param_len, NULL)) == NULL) {
-        ECerr(EC_F_EC_GROUP_NEW_FROM_DATA, ERR_R_BN_LIB);
+        ERR_raise(ERR_LIB_EC, ERR_R_BN_LIB);
         goto err;
     }
 
     if (curve.meth != 0) {
         meth = curve.meth();
-        if (((group = ec_group_new_ex(libctx, meth)) == NULL) ||
+        if (((group = ec_group_new_ex(libctx, propq, meth)) == NULL) ||
             (!(group->meth->group_set_curve(group, p, a, b, ctx)))) {
-            ECerr(EC_F_EC_GROUP_NEW_FROM_DATA, ERR_R_EC_LIB);
+            ERR_raise(ERR_LIB_EC, ERR_R_EC_LIB);
             goto err;
         }
     } else if (data->field_type == NID_X9_62_prime_field) {
         if ((group = EC_GROUP_new_curve_GFp(p, a, b, ctx)) == NULL) {
-            ECerr(EC_F_EC_GROUP_NEW_FROM_DATA, ERR_R_EC_LIB);
+            ERR_raise(ERR_LIB_EC, ERR_R_EC_LIB);
             goto err;
         }
     }
@@ -3234,7 +3236,7 @@ static EC_GROUP *ec_group_new_from_data(OPENSSL_CTX *libctx,
                                  * NID_X9_62_characteristic_two_field */
 
         if ((group = EC_GROUP_new_curve_GF2m(p, a, b, ctx)) == NULL) {
-            ECerr(EC_F_EC_GROUP_NEW_FROM_DATA, ERR_R_EC_LIB);
+            ERR_raise(ERR_LIB_EC, ERR_R_EC_LIB);
             goto err;
         }
     }
@@ -3243,31 +3245,31 @@ static EC_GROUP *ec_group_new_from_data(OPENSSL_CTX *libctx,
     EC_GROUP_set_curve_name(group, curve.nid);
 
     if ((P = EC_POINT_new(group)) == NULL) {
-        ECerr(EC_F_EC_GROUP_NEW_FROM_DATA, ERR_R_EC_LIB);
+        ERR_raise(ERR_LIB_EC, ERR_R_EC_LIB);
         goto err;
     }
 
     if ((x = BN_bin2bn(params + 3 * param_len, param_len, NULL)) == NULL
         || (y = BN_bin2bn(params + 4 * param_len, param_len, NULL)) == NULL) {
-        ECerr(EC_F_EC_GROUP_NEW_FROM_DATA, ERR_R_BN_LIB);
+        ERR_raise(ERR_LIB_EC, ERR_R_BN_LIB);
         goto err;
     }
     if (!EC_POINT_set_affine_coordinates(group, P, x, y, ctx)) {
-        ECerr(EC_F_EC_GROUP_NEW_FROM_DATA, ERR_R_EC_LIB);
+        ERR_raise(ERR_LIB_EC, ERR_R_EC_LIB);
         goto err;
     }
     if ((order = BN_bin2bn(params + 5 * param_len, param_len, NULL)) == NULL
         || !BN_set_word(x, (BN_ULONG)data->cofactor)) {
-        ECerr(EC_F_EC_GROUP_NEW_FROM_DATA, ERR_R_BN_LIB);
+        ERR_raise(ERR_LIB_EC, ERR_R_BN_LIB);
         goto err;
     }
     if (!EC_GROUP_set_generator(group, P, order, x)) {
-        ECerr(EC_F_EC_GROUP_NEW_FROM_DATA, ERR_R_EC_LIB);
+        ERR_raise(ERR_LIB_EC, ERR_R_EC_LIB);
         goto err;
     }
     if (seed_len) {
         if (!EC_GROUP_set_seed(group, params - seed_len, seed_len)) {
-            ECerr(EC_F_EC_GROUP_NEW_FROM_DATA, ERR_R_EC_LIB);
+            ERR_raise(ERR_LIB_EC, ERR_R_EC_LIB);
             goto err;
         }
     }
@@ -3288,14 +3290,20 @@ static EC_GROUP *ec_group_new_from_data(OPENSSL_CTX *libctx,
     return group;
 }
 
-EC_GROUP *EC_GROUP_new_by_curve_name_ex(OPENSSL_CTX *libctx, int nid)
+EC_GROUP *EC_GROUP_new_by_curve_name_ex(OSSL_LIB_CTX *libctx, const char *propq,
+                                        int nid)
 {
     EC_GROUP *ret = NULL;
     const ec_list_element *curve;
 
     if ((curve = ec_curve_nid2curve(nid)) == NULL
-        || (ret = ec_group_new_from_data(libctx, *curve)) == NULL) {
-        ECerr(EC_F_EC_GROUP_NEW_BY_CURVE_NAME_EX, EC_R_UNKNOWN_GROUP);
+        || (ret = ec_group_new_from_data(libctx, propq, *curve)) == NULL) {
+#ifndef FIPS_MODULE
+        ERR_raise_data(ERR_LIB_EC, EC_R_UNKNOWN_GROUP,
+                       "name=%s", OBJ_nid2sn(nid));
+#else
+        ERR_raise(ERR_LIB_EC, EC_R_UNKNOWN_GROUP);
+#endif
         return NULL;
     }
 
@@ -3305,7 +3313,7 @@ EC_GROUP *EC_GROUP_new_by_curve_name_ex(OPENSSL_CTX *libctx, int nid)
 #ifndef FIPS_MODULE
 EC_GROUP *EC_GROUP_new_by_curve_name(int nid)
 {
-    return EC_GROUP_new_by_curve_name_ex(NULL, nid);
+    return EC_GROUP_new_by_curve_name_ex(NULL, NULL, nid);
 }
 #endif
 

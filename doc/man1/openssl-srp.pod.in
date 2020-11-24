@@ -21,8 +21,7 @@ B<openssl srp>
 [B<-userinfo> I<text>]
 [B<-passin> I<arg>]
 [B<-passout> I<arg>]
-{- $OpenSSL::safe::opt_engine_synopsis -}
-{- $OpenSSL::safe::opt_r_synopsis -}
+{- $OpenSSL::safe::opt_engine_synopsis -}{- $OpenSSL::safe::opt_r_synopsis -}
 {- $OpenSSL::safe::opt_provider_synopsis -}
 [I<user> ...]
 
@@ -80,6 +79,10 @@ see L<openssl(1)/Pass Phrase Options>.
 {- $OpenSSL::safe::opt_r_synopsis -}
 
 =back
+
+=head1 HISTORY
+
+The B<-engine> option was deprecated in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 

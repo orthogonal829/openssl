@@ -52,15 +52,6 @@ I<options> and I<parameters>.
 Detailed documentation and use cases for most standard subcommands are available
 (e.g., L<openssl-x509(1)>).
 
-Many commands use an external configuration file for some or all of their
-arguments and have a B<-config> option to specify that file.
-The default name of the file is F<openssl.cnf> in the default certificate
-storage area, which can be determined from the L<openssl-version(1)>
-command.
-The environment variable B<OPENSSL_CONF> can be used to specify
-a different location of the file.
-See L<openssl-env(7)>.
-
 The list options B<-standard-commands>, B<-digest-commands>,
 and B<-cipher-commands> output a list (one entry per line) of the names
 of all standard commands, message digest commands, or cipher commands,
@@ -85,6 +76,17 @@ same name, this provides an easy way for shell scripts to test for the
 availability of ciphers in the B<openssl> program.  (B<no->I<XXX> is
 not able to detect pseudo-commands such as B<quit>,
 B<list>, or B<no->I<XXX> itself.)
+
+=head2 Configuration Option
+
+Many commands use an external configuration file for some or all of their
+arguments and have a B<-config> option to specify that file.
+The default name of the file is F<openssl.cnf> in the default certificate
+storage area, which can be determined from the L<openssl-version(1)>
+command. This can be used to load modules.
+The environment variable B<OPENSSL_CONF> can be used to specify
+a different location of the file.
+See L<openssl-env(7)>.
 
 =head2 Standard Commands
 
@@ -229,10 +231,6 @@ Public key algorithm cryptographic operation command.
 =item B<prime>
 
 Compute prime numbers.
-
-=item B<provider>
-
-Load and query providers.
 
 =item B<rand>
 
@@ -527,7 +525,7 @@ parameters start with a minus sign:
 Several OpenSSL commands can take input or generate output in a variety
 of formats.
 Since OpenSSL 3.0 keys, single certificates, and CRLs can be read from
-files in any of the B<DER>, B<PEM>, or B<P12> formats,
+files in any of the B<DER>, B<PEM> or B<P12> formats,
 while specifying their input format is no more needed.
 
 The list of acceptable formats, and the default, is
@@ -612,7 +610,7 @@ Note that the parsing is simple and might fail to parse some legal data.
 =back
 
 The options to specify the format are as follows. Refer to the individual
-manpage to see which options are accepted.
+man page to see which options are accepted.
 
 =over 4
 
@@ -762,26 +760,6 @@ This file can be used in a subsequent command invocation.
 
 =back
 
-=head2 Provider Options
-
-With the move to provider based cryptographic operations in OpenSSL 3.0,
-options were added to allow specific providers or sets of providers to be used.
-
-=over 4
-
-=item B<-provider> I<name>
-
-Use the provider identified by I<name> and use all the methods it
-implements (algorithms, key storage, etc.).  This option can be specified
-multiple time to load more than one provider.
-
-=item B<-provider_path> I<path>
-
-Specify the search I<path> that is used to locate provider modules.  The format
-of I<path> varies depending on the operating system being used.
-
-=back
-
 =head2 Extended Verification Options
 
 Sometimes there may be more than one certificate chain leading to an
@@ -829,45 +807,54 @@ command handles errors are documented on the specific command page.
 Verification is a complicated process, consisting of a number of separate
 steps that are detailed in the following paragraphs.
 
-First, a certificate chain is built up starting from the supplied certificate
-and ending in a root CA.  It is an error if the whole chain cannot be
-built up.  The chain is built up by looking up the certificate that
-signed (or issued) the certificate. It then repeats the process, until
-it gets to a certificate that is self-issued.
+First, a certificate chain is built up starting from the target certificate
+and typically ending in a self-signed "root" CA certificate.
+It is an error if the whole chain cannot be built up
+unless the B<-partial_chain> option is given.
+The chain is built up iteratively, looking up in turn
+the certificate of the signer ("issuer") of the current certificate.
+If a certificate is found that appears to be its own issuer
+it is assumed to be the self-signed root, which must be trusted.
 
 The process of looking up the issuer's certificate itself involves a number
-of steps.  After all certificates whose subject name matches the issuer
-name of the current certificate are subject to further tests.  The relevant
-authority key identifier components of the current certificate (if present)
-must match the subject key identifier (if present) and issuer and serial
-number of the candidate issuer, in addition the keyUsage extension of the
-candidate issuer (if present) must permit certificate signing.
+of steps.
+All available certificates with a subject name that matches the issuer
+name of the current certificate are subject to further tests.
+The relevant authority key identifier components of the current certificate
+(if present) must match the subject key identifier (if present)
+and issuer and serial number of the candidate issuer certificate.
 
-The lookup first looks in the list of untrusted certificates and if no match
-is found the remaining lookups are from the trusted certificates. The root CA
-is always looked up in the trusted certificate list: if the certificate to
-verify is a root certificate then an exact match must be found in the trusted
-list.
+The lookup first searches for issuer certificates in the trust store.
+If it does not find a match there it consults
+the list of untrusted "intermediate" CA certificates (if provided).
+The last certificate (which typically is of a root CA) is always looked up
+in the trusted certificate list; an exact match must be found there.
 
-The second step is to check every untrusted certificate's extensions
-for consistency with the supplied purpose. If the B<-purpose> option is
-not included then no checks are done. The supplied or "leaf" certificate
-must have extensions compatible with the supplied purpose and all other
-certificates must also be valid CA certificates. The precise extensions
-required are described in more detail in
+The second step is to check the extensions of every untrusted certificate
+for consistency with the supplied purpose.
+If the B<-purpose> option is not included then no checks are done.
+The target or "leaf" certificate must have extensions compatible with the
+supplied purpose and all other certificates must also be valid CA certificates.
+The precise extensions required are described in more detail in
 L<openssl-x509(1)/CERTIFICATE EXTENSIONS>.
 
-The third step is to check the trust settings on the root CA. The root
-CA should be trusted for the supplied purpose.  For compatibility with
-previous versions of OpenSSL, a certificate with no trust settings is
-considered to be valid for all purposes.
+The third step is to check the trust settings on the last certficate,
+typically of a root CA.
+It should be trusted for the supplied purpose.
+For compatibility with previous versions of OpenSSL,
+a certificate with no trust settings is considered to be valid for all purposes.
 
-The fourth, and final, step is to check the validity of the certificate
-chain. The validity period is checked against the system time
-and the C<notBefore> and C<notAfter> dates in the certificate. The certificate
-signatures are also checked at this point. The B<-attime> flag may be
-used to specify a time other than "now."
-
+The fourth, and final, step is to check the validity of the certificate chain.
+The validity period is checked against the system time
+and the C<notBefore> and C<notAfter> dates in each certificate.
+The B<-attime> flag may be used to specify a time other than "now."
+The certificate signatures are also checked at this point
+(except for the signature of the self-signed "root CA" certificate,
+which is verified only if the B<-check_ss_sig> option is given).
+When verifying a certificate signature
+the keyUsage extension (if present) of the candidate issuer certificate
+is checked to permit digitalSignature for signing proxy certificates
+or to permit keyCertSign for signing other certificates, respectively.
 If all operations complete successfully then certificate is considered
 valid. If any operation fails then the certificate is not valid.
 
@@ -895,10 +882,65 @@ a verification time, the check is not suppressed.
 =item B<-x509_strict>
 
 This disables non-compliant workarounds for broken certificates.
+Thus errors are thrown on certificates not compliant with RFC 5280.
+
+When this option is set,
+among others, the following certificate well-formedness conditions are checked:
+
+=over 4
+
+=item -
+
+The basicConstraints of CA certificates must be marked critical.
+
+=item -
+
+CA certificates must explicitly include the keyUsage extension.
+
+=item -
+
+If a pathlenConstraint is given the key usage keyCertSign must be allowed.
+
+=item -
+
+The pathlenConstraint must not be given for non-CA certificates.
+
+=item -
+
+The issuer name of any certificate must not be empty.
+
+=item -
+
+The subject name of CA certs, certs with keyUsage crlSign, and certs
+without subjectAlternativeName must not be empty.
+
+=item -
+
+If a subjectAlternativeName extension is given it must not be empty.
+
+=item -
+
+The signatureAlgorithm field and the cert signature must be consistent.
+
+=item -
+
+Any given authorityKeyIdentifier and any given subjectKeyIdentifier
+must not be marked critical.
+
+=item -
+
+The authorityKeyIdentifier must be given for X.509v3 certs unless they
+are self-signed.
+
+=item -
+
+The subjectKeyIdentifier must be given for all X.509v3 CA certs.
+
+=back
 
 =item B<-ignore_critical>
 
-Normally if an unhandled critical extension is present which is not
+Normally if an unhandled critical extension is present that is not
 supported by OpenSSL the certificate is rejected (as required by RFC5280).
 If this option is set critical extensions are ignored.
 
@@ -954,11 +996,15 @@ keys shorter than 1024 bits.
 Allow verification to succeed even if a I<complete> chain cannot be built to a
 self-signed trust-anchor, provided it is possible to construct a chain to a
 trusted certificate that might not be self-signed.
+This certificate may be self-issued or belong to an intermediate CA.
 
 =item B<-check_ss_sig>
 
-Verify the signature on the self-signed root CA. This is disabled by default
-because it doesn't add any security.
+Verify the signature of
+the last certificate in a chain if the certificate is supposedly self-signed.
+This is prohibited and will result in an error if it is a non-conforming CA
+certificate with key usage restrictions not including the keyCertSign bit.
+This verification is disabled by default because it doesn't add any security.
 
 =item B<-allow_proxy_certs>
 
@@ -967,6 +1013,10 @@ Allow the verification of proxy certificates.
 =item B<-trusted_first>
 
 As of OpenSSL 1.1.0 this option is on by default and cannot be disabled.
+
+When constructing the certificate chain, the trusted certificates specified
+via B<-CAfile>, B<-CApath>, B<-CAstore> or B<-trusted> are always used
+before any certificates specified via B<-untrusted>.
 
 =item B<-no_alt_chains>
 
@@ -986,7 +1036,8 @@ This option may be used multiple times.
 =item B<-untrusted> I<file>
 
 Parse I<file> as a set of one or more certificates in PEM format.
-All certificates are untrusted certificates that may be used to
+All certificates are untrusted certificates (typically of intermedate CAs)
+that may be used to
 construct a certificate chain from the subject certificate to a trust anchor.
 This option may be used multiple times.
 
@@ -1032,18 +1083,18 @@ B<-verify_depth> limit.
 
 =item B<-verify_email> I<email>
 
-Verify if I<email> matches the email address in Subject Alternative Name or
-the email in the subject Distinguished Name.
+Verify if I<email> matches any email address in a Subject Alternative Name or
+(if no SAN is included) the email address in the subject Distinguished Name.
 
 =item B<-verify_hostname> I<hostname>
 
-Verify if I<hostname> matches DNS name in Subject Alternative Name or
-Common Name in the subject certificate.
+Verify if I<hostname> matches any DNS name in a Subject Alternative Name or
+(if no SAN is included) the Common Name in the subject Distinguished Name.
 
 =item B<-verify_ip> I<ip>
 
-Verify if I<ip> matches the IP address in Subject Alternative Name of
-the subject certificate.
+Verify if I<ip> matches any IP address in a Subject Alternative Name or
+(if no SAN is included) the Common Name in the subject Distinguished Name.
 
 =item B<-verify_name> I<name>
 
@@ -1108,7 +1159,7 @@ a string and leading or trailing spaces.
 =item B<esc_2254>
 
 Escape the "special" characters in a field as required by RFC 2254 in a field.
-That is, the B<NUL> character and and of C<()*>.
+That is, the B<NUL> character and of C<()*>.
 
 =item B<esc_ctrl>
 
@@ -1260,7 +1311,7 @@ in L<config(5)/Engine Configuration Module>.
 
 The OpenSSL library can be take some configuration parameters from the
 environment.  Some of these variables are listed below.  For information
-about specific commands, see L<openssl-engine(1)>, L<openssl-provider(1)>,
+about specific commands, see L<openssl-engine(1)>,
 L<openssl-rehash(1)>, and L<tsget(1)>.
 
 For information about the use of environment variables in configuration,

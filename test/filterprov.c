@@ -14,7 +14,7 @@
 
 #include <string.h>
 #include <openssl/core.h>
-#include <openssl/core_numbers.h>
+#include <openssl/core_dispatch.h>
 #include <openssl/provider.h>
 #include <openssl/crypto.h>
 
@@ -26,7 +26,7 @@ int filter_provider_set_filter(int operation, const char *name);
 #define MAX_ALG_FILTERS 5
 
 struct filter_prov_globals_st {
-    OPENSSL_CTX *libctx;
+    OSSL_LIB_CTX *libctx;
     OSSL_PROVIDER *deflt;
     struct {
         int operation;
@@ -40,17 +40,17 @@ static struct filter_prov_globals_st ourglobals;
 static struct filter_prov_globals_st *get_globals(void)
 {
     /*
-     * Ideally we'd like to store this in the OPENSSL_CTX so that we can have
+     * Ideally we'd like to store this in the OSSL_LIB_CTX so that we can have
      * more than one instance of the filter provider at a time. But for now we
      * just make it simple.
      */
     return &ourglobals;
 }
 
-static OSSL_provider_gettable_params_fn filter_gettable_params;
-static OSSL_provider_get_params_fn filter_get_params;
-static OSSL_provider_query_operation_fn filter_query;
-static OSSL_provider_teardown_fn filter_teardown;
+static OSSL_FUNC_provider_gettable_params_fn filter_gettable_params;
+static OSSL_FUNC_provider_get_params_fn filter_get_params;
+static OSSL_FUNC_provider_query_operation_fn filter_query;
+static OSSL_FUNC_provider_teardown_fn filter_teardown;
 
 static const OSSL_PARAM *filter_gettable_params(void *provctx)
 {
@@ -64,6 +64,14 @@ static int filter_get_params(void *provctx, OSSL_PARAM params[])
     struct filter_prov_globals_st *globs = get_globals();
 
     return OSSL_PROVIDER_get_params(globs->deflt, params);
+}
+
+static int filter_get_capabilities(void *provctx, const char *capability,
+                                   OSSL_CALLBACK *cb, void *arg)
+{
+    struct filter_prov_globals_st *globs = get_globals();
+
+    return OSSL_PROVIDER_get_capabilities(globs->deflt, capability, cb, arg);
 }
 
 static const OSSL_ALGORITHM *filter_query(void *provctx,
@@ -89,7 +97,7 @@ static void filter_teardown(void *provctx)
     struct filter_prov_globals_st *globs = get_globals();
 
     OSSL_PROVIDER_unload(globs->deflt);
-    OPENSSL_CTX_free(globs->libctx);
+    OSSL_LIB_CTX_free(globs->libctx);
 }
 
 /* Functions we provide to the core */
@@ -97,6 +105,7 @@ static const OSSL_DISPATCH filter_dispatch_table[] = {
     { OSSL_FUNC_PROVIDER_GETTABLE_PARAMS, (void (*)(void))filter_gettable_params },
     { OSSL_FUNC_PROVIDER_GET_PARAMS, (void (*)(void))filter_get_params },
     { OSSL_FUNC_PROVIDER_QUERY_OPERATION, (void (*)(void))filter_query },
+    { OSSL_FUNC_PROVIDER_GET_CAPABILITIES, (void (*)(void))filter_get_capabilities },
     { OSSL_FUNC_PROVIDER_TEARDOWN, (void (*)(void))filter_teardown },
     { 0, NULL }
 };
@@ -107,7 +116,7 @@ int filter_provider_init(const OSSL_CORE_HANDLE *handle,
                          void **provctx)
 {
     memset(&ourglobals, 0, sizeof(ourglobals));
-    ourglobals.libctx = OPENSSL_CTX_new();
+    ourglobals.libctx = OSSL_LIB_CTX_new();
     if (ourglobals.libctx == NULL)
         goto err;
 
@@ -121,7 +130,7 @@ int filter_provider_init(const OSSL_CORE_HANDLE *handle,
 
  err:
     OSSL_PROVIDER_unload(ourglobals.deflt);
-    OPENSSL_CTX_free(ourglobals.libctx);
+    OSSL_LIB_CTX_free(ourglobals.libctx);
     return 0;
 }
 

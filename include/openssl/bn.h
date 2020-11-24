@@ -62,7 +62,7 @@ extern "C" {
  * avoid leaking exponent information through timing,
  * BN_mod_exp_mont() will call BN_mod_exp_mont_consttime,
  * BN_div() will call BN_div_no_branch,
- * BN_mod_inverse() will call BN_mod_inverse_no_branch.
+ * BN_mod_inverse() will call bn_mod_inverse_no_branch.
  */
 # define BN_FLG_CONSTTIME        0x04
 # define BN_FLG_SECURE           0x08
@@ -206,9 +206,9 @@ void BN_zero_ex(BIGNUM *a);
 
 const BIGNUM *BN_value_one(void);
 char *BN_options(void);
-BN_CTX *BN_CTX_new_ex(OPENSSL_CTX *ctx);
+BN_CTX *BN_CTX_new_ex(OSSL_LIB_CTX *ctx);
 BN_CTX *BN_CTX_new(void);
-BN_CTX *BN_CTX_secure_new_ex(OPENSSL_CTX *ctx);
+BN_CTX *BN_CTX_secure_new_ex(OSSL_LIB_CTX *ctx);
 BN_CTX *BN_CTX_secure_new(void);
 void BN_CTX_free(BN_CTX *c);
 void BN_CTX_start(BN_CTX *ctx);
@@ -527,7 +527,6 @@ int BN_generate_dsa_nonce(BIGNUM *out, const BIGNUM *range,
                           const BIGNUM *priv, const unsigned char *message,
                           size_t message_len, BN_CTX *ctx);
 
-# ifndef OPENSSL_NO_DH
 /* Primes from RFC 2409 */
 BIGNUM *BN_get_rfc2409_prime_768(BIGNUM *bn);
 BIGNUM *BN_get_rfc2409_prime_1024(BIGNUM *bn);
@@ -550,7 +549,6 @@ BIGNUM *BN_get_rfc3526_prime_8192(BIGNUM *bn);
 #   define get_rfc3526_prime_6144 BN_get_rfc3526_prime_6144
 #   define get_rfc3526_prime_8192 BN_get_rfc3526_prime_8192
 #  endif
-# endif
 
 int BN_bntest_rand(BIGNUM *rnd, int bits, int top, int bottom);
 

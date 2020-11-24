@@ -17,8 +17,6 @@
 #include <openssl/kdf.h>
 #include <openssl/params.h>
 
-DEFINE_STACK_OF_STRING()
-
 typedef enum OPTION_choice {
     OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
     OPT_KDFOPT, OPT_BIN, OPT_KEYLEN, OPT_OUT,
@@ -104,7 +102,7 @@ opthelp:
         goto opthelp;
     }
 
-    ctx = EVP_KDF_new_ctx(kdf);
+    ctx = EVP_KDF_CTX_new(kdf);
     if (ctx == NULL)
         goto err;
 
@@ -116,7 +114,7 @@ opthelp:
         if (params == NULL)
             goto err;
 
-        if (!EVP_KDF_set_ctx_params(ctx, params)) {
+        if (!EVP_KDF_CTX_set_params(ctx, params)) {
             BIO_printf(bio_err, "KDF parameter error\n");
             ERR_print_errors(bio_err);
             ok = 0;
@@ -161,7 +159,7 @@ err:
     OPENSSL_clear_free(dkm_bytes, dkm_len);
     sk_OPENSSL_STRING_free(opts);
     EVP_KDF_free(kdf);
-    EVP_KDF_free_ctx(ctx);
+    EVP_KDF_CTX_free(ctx);
     BIO_free(out);
     OPENSSL_free(hexout);
     return ret;

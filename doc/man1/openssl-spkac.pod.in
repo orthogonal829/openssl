@@ -24,8 +24,7 @@ B<openssl> B<spkac>
 [B<-spksect> I<section>]
 [B<-noout>]
 [B<-verify>]
-{- $OpenSSL::safe::opt_engine_synopsis -}
-{- $OpenSSL::safe::opt_provider_synopsis -}
+{- $OpenSSL::safe::opt_engine_synopsis -}{- $OpenSSL::safe::opt_provider_synopsis -}
 
 =for openssl ifdef engine
 
@@ -153,6 +152,8 @@ L<openssl-ca(1)>
 
 All B<-keyform> values except B<ENGINE> have become obsolete in OpenSSL 3.0.0
 and have no effect.
+
+The B<-engine> option was deprecated in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 

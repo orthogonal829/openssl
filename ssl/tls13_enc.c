@@ -57,23 +57,22 @@ int tls13_hkdf_expand(SSL *s, const EVP_MD *md, const unsigned char *secret,
                             + 1 + EVP_MAX_MD_SIZE];
     WPACKET pkt;
 
-    kctx = EVP_KDF_new_ctx(kdf);
+    kctx = EVP_KDF_CTX_new(kdf);
     EVP_KDF_free(kdf);
     if (kctx == NULL)
         return 0;
 
     if (labellen > TLS13_MAX_LABEL_LEN) {
         if (fatal) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_HKDF_EXPAND,
-                     ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         } else {
             /*
              * Probably we have been called from SSL_export_keying_material(),
              * or SSL_export_keying_material_early().
              */
-            SSLerr(SSL_F_TLS13_HKDF_EXPAND, SSL_R_TLS_ILLEGAL_EXPORTER_LABEL);
+            ERR_raise(ERR_LIB_SSL, SSL_R_TLS_ILLEGAL_EXPORTER_LABEL);
         }
-        EVP_KDF_free_ctx(kctx);
+        EVP_KDF_CTX_free(kctx);
         return 0;
     }
 
@@ -88,13 +87,12 @@ int tls13_hkdf_expand(SSL *s, const EVP_MD *md, const unsigned char *secret,
             || !WPACKET_sub_memcpy_u8(&pkt, data, (data == NULL) ? 0 : datalen)
             || !WPACKET_get_total_written(&pkt, &hkdflabellen)
             || !WPACKET_finish(&pkt)) {
-        EVP_KDF_free_ctx(kctx);
+        EVP_KDF_CTX_free(kctx);
         WPACKET_cleanup(&pkt);
         if (fatal)
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_HKDF_EXPAND,
-                     ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         else
-            SSLerr(SSL_F_TLS13_HKDF_EXPAND, ERR_R_INTERNAL_ERROR);
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
     }
 
@@ -107,17 +105,16 @@ int tls13_hkdf_expand(SSL *s, const EVP_MD *md, const unsigned char *secret,
                                              hkdflabel, hkdflabellen);
     *p++ = OSSL_PARAM_construct_end();
 
-    ret = EVP_KDF_set_ctx_params(kctx, params) <= 0
+    ret = EVP_KDF_CTX_set_params(kctx, params) <= 0
         || EVP_KDF_derive(kctx, out, outlen) <= 0;
 
-    EVP_KDF_free_ctx(kctx);
+    EVP_KDF_CTX_free(kctx);
 
     if (ret != 0) {
         if (fatal)
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_HKDF_EXPAND,
-                     ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         else
-            SSLerr(SSL_F_TLS13_HKDF_EXPAND, ERR_R_INTERNAL_ERROR);
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
     }
 
     return ret == 0;
@@ -198,20 +195,18 @@ int tls13_generate_secret(SSL *s, const EVP_MD *md,
     unsigned char preextractsec[EVP_MAX_MD_SIZE];
 
     kdf = EVP_KDF_fetch(s->ctx->libctx, OSSL_KDF_NAME_HKDF, s->ctx->propq);
-    kctx = EVP_KDF_new_ctx(kdf);
+    kctx = EVP_KDF_CTX_new(kdf);
     EVP_KDF_free(kdf);
     if (kctx == NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_GENERATE_SECRET,
-                 ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
 
     mdleni = EVP_MD_size(md);
     /* Ensure cast to size_t is safe */
     if (!ossl_assert(mdleni >= 0)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_GENERATE_SECRET,
-                 ERR_R_INTERNAL_ERROR);
-        EVP_KDF_free_ctx(kctx);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        EVP_KDF_CTX_free(kctx);
         return 0;
     }
     mdlen = (size_t)mdleni;
@@ -231,10 +226,9 @@ int tls13_generate_secret(SSL *s, const EVP_MD *md,
         if (mctx == NULL
                 || EVP_DigestInit_ex(mctx, md, NULL) <= 0
                 || EVP_DigestFinal_ex(mctx, hash, NULL) <= 0) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_GENERATE_SECRET,
-                     ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             EVP_MD_CTX_free(mctx);
-            EVP_KDF_free_ctx(kctx);
+            EVP_KDF_CTX_free(kctx);
             return 0;
         }
         EVP_MD_CTX_free(mctx);
@@ -245,7 +239,7 @@ int tls13_generate_secret(SSL *s, const EVP_MD *md,
                                sizeof(derived_secret_label) - 1, hash, mdlen,
                                preextractsec, mdlen, 1)) {
             /* SSLfatal() already called */
-            EVP_KDF_free_ctx(kctx);
+            EVP_KDF_CTX_free(kctx);
             return 0;
         }
 
@@ -264,14 +258,13 @@ int tls13_generate_secret(SSL *s, const EVP_MD *md,
                                              prevsecretlen);
     *p++ = OSSL_PARAM_construct_end();
 
-    ret = EVP_KDF_set_ctx_params(kctx, params) <= 0
+    ret = EVP_KDF_CTX_set_params(kctx, params) <= 0
         || EVP_KDF_derive(kctx, outsecret, mdlen) <= 0;
 
     if (ret != 0)
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_GENERATE_SECRET,
-                 ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
 
-    EVP_KDF_free_ctx(kctx);
+    EVP_KDF_CTX_free(kctx);
     if (prevsecret == preextractsec)
         OPENSSL_cleanse(preextractsec, mdlen);
     return ret == 0;
@@ -323,8 +316,7 @@ size_t tls13_final_finish_mac(SSL *s, const char *str, size_t slen,
     OSSL_PARAM params[4], *p = params;
 
     if (hmac == NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_FINAL_FINISH_MAC,
-                 ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
@@ -360,22 +352,21 @@ size_t tls13_final_finish_mac(SSL *s, const char *str, size_t slen,
     }
     *p++ = OSSL_PARAM_construct_end();
 
-    ctx = EVP_MAC_new_ctx(hmac);
+    ctx = EVP_MAC_CTX_new(hmac);
     if (ctx == NULL
-            || !EVP_MAC_set_ctx_params(ctx, params)
+            || !EVP_MAC_CTX_set_params(ctx, params)
             || !EVP_MAC_init(ctx)
             || !EVP_MAC_update(ctx, hash, hashlen)
                /* outsize as per sizeof(peer_finish_md) */
             || !EVP_MAC_final(ctx, out, &hashlen, EVP_MAX_MD_SIZE * 2)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_FINAL_FINISH_MAC,
-                 ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
     ret = hashlen;
  err:
     OPENSSL_cleanse(finsecret, sizeof(finsecret));
-    EVP_MAC_free_ctx(ctx);
+    EVP_MAC_CTX_free(ctx);
     EVP_MAC_free(hmac);
     return ret;
 }
@@ -392,8 +383,7 @@ int tls13_setup_key_block(SSL *s)
     s->session->cipher = s->s3.tmp.new_cipher;
     if (!ssl_cipher_get_evp(s->ctx, s->session, &c, &hash, NULL, NULL, NULL,
                             0)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_SETUP_KEY_BLOCK,
-                 SSL_R_CIPHER_OR_HASH_UNAVAILABLE);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_CIPHER_OR_HASH_UNAVAILABLE);
         return 0;
     }
 
@@ -420,8 +410,7 @@ static int derive_secret_key_and_iv(SSL *s, int sending, const EVP_MD *md,
 
     /* Ensure cast to size_t is safe */
     if (!ossl_assert(hashleni >= 0)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_DERIVE_SECRET_KEY_AND_IV,
-                 ERR_R_EVP_LIB);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_EVP_LIB);
         return 0;
     }
     hashlen = (size_t)hashleni;
@@ -447,8 +436,7 @@ static int derive_secret_key_and_iv(SSL *s, int sending, const EVP_MD *md,
             /* We must be doing early data with out-of-band PSK */
             algenc = s->psksession->cipher->algorithm_enc;
         } else {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_DERIVE_SECRET_KEY_AND_IV,
-                     ERR_R_EVP_LIB);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_EVP_LIB);
             return 0;
         }
         if (algenc & (SSL_AES128CCM8 | SSL_AES256CCM8))
@@ -471,8 +459,7 @@ static int derive_secret_key_and_iv(SSL *s, int sending, const EVP_MD *md,
         || (taglen != 0 && !EVP_CIPHER_CTX_ctrl(ciph_ctx, EVP_CTRL_AEAD_SET_TAG,
                                                 taglen, NULL))
         || EVP_CipherInit_ex(ciph_ctx, NULL, NULL, key, NULL, -1) <= 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_DERIVE_SECRET_KEY_AND_IV,
-                 ERR_R_EVP_LIB);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_EVP_LIB);
         return 0;
     }
 
@@ -516,10 +503,8 @@ int tls13_change_cipher_state(SSL *s, int which)
     const EVP_MD *md = NULL;
     const EVP_CIPHER *cipher = NULL;
 #if !defined(OPENSSL_NO_KTLS) && defined(OPENSSL_KTLS_TLS13)
-# ifndef __FreeBSD__
-    struct tls_crypto_info_all crypto_info;
+    ktls_crypto_info_t crypto_info;
     BIO *bio;
-# endif
 #endif
 
     if (which & SSL3_CC_READ) {
@@ -528,8 +513,7 @@ int tls13_change_cipher_state(SSL *s, int which)
         } else {
             s->enc_read_ctx = EVP_CIPHER_CTX_new();
             if (s->enc_read_ctx == NULL) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                         SSL_F_TLS13_CHANGE_CIPHER_STATE, ERR_R_MALLOC_FAILURE);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
                 goto err;
             }
         }
@@ -544,8 +528,7 @@ int tls13_change_cipher_state(SSL *s, int which)
         } else {
             s->enc_write_ctx = EVP_CIPHER_CTX_new();
             if (s->enc_write_ctx == NULL) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                         SSL_F_TLS13_CHANGE_CIPHER_STATE, ERR_R_MALLOC_FAILURE);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
                 goto err;
             }
         }
@@ -571,9 +554,7 @@ int tls13_change_cipher_state(SSL *s, int which)
 
             handlen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
             if (handlen <= 0) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                         SSL_F_TLS13_CHANGE_CIPHER_STATE,
-                         SSL_R_BAD_HANDSHAKE_LENGTH);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_HANDSHAKE_LENGTH);
                 goto err;
             }
 
@@ -588,16 +569,13 @@ int tls13_change_cipher_state(SSL *s, int which)
                 if (!ossl_assert(s->psksession != NULL
                         && s->max_early_data ==
                            s->psksession->ext.max_early_data)) {
-                    SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                             SSL_F_TLS13_CHANGE_CIPHER_STATE,
-                             ERR_R_INTERNAL_ERROR);
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     goto err;
                 }
                 sslcipher = SSL_SESSION_get0_cipher(s->psksession);
             }
             if (sslcipher == NULL) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                         SSL_F_TLS13_CHANGE_CIPHER_STATE, SSL_R_BAD_PSK);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_PSK);
                 goto err;
             }
 
@@ -608,8 +586,7 @@ int tls13_change_cipher_state(SSL *s, int which)
              */
             mdctx = EVP_MD_CTX_new();
             if (mdctx == NULL) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                         SSL_F_TLS13_CHANGE_CIPHER_STATE, ERR_R_MALLOC_FAILURE);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
                 goto err;
             }
 
@@ -619,7 +596,6 @@ int tls13_change_cipher_state(SSL *s, int which)
              */
             if (!ssl_cipher_get_evp_cipher(s->ctx, sslcipher, &cipher)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                         SSL_F_TLS13_CHANGE_CIPHER_STATE,
                          SSL_R_ALGORITHM_FETCH_FAILED);
                 EVP_MD_CTX_free(mdctx);
                 goto err;
@@ -629,8 +605,7 @@ int tls13_change_cipher_state(SSL *s, int which)
             if (md == NULL || !EVP_DigestInit_ex(mdctx, md, NULL)
                     || !EVP_DigestUpdate(mdctx, hdata, handlen)
                     || !EVP_DigestFinal_ex(mdctx, hashval, &hashlenui)) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                         SSL_F_TLS13_CHANGE_CIPHER_STATE, ERR_R_INTERNAL_ERROR);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 EVP_MD_CTX_free(mdctx);
                 goto err;
             }
@@ -643,8 +618,7 @@ int tls13_change_cipher_state(SSL *s, int which)
                                    hashval, hashlen,
                                    s->early_exporter_master_secret, hashlen,
                                    1)) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                         SSL_F_TLS13_CHANGE_CIPHER_STATE, ERR_R_INTERNAL_ERROR);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
 
@@ -784,7 +758,6 @@ int tls13_change_cipher_state(SSL *s, int which)
         s->statem.enc_write_state = ENC_WRITE_STATE_VALID;
 #ifndef OPENSSL_NO_KTLS
 # if defined(OPENSSL_KTLS_TLS13)
-#  ifndef __FreeBSD__
     if (!(which & SSL3_CC_WRITE) || !(which & SSL3_CC_APPLICATION)
         || ((which & SSL3_CC_WRITE) && (s->mode & SSL_MODE_NO_KTLS_TX)))
         goto skip_ktls;
@@ -798,14 +771,13 @@ int tls13_change_cipher_state(SSL *s, int which)
         goto skip_ktls;
 
     /* check that cipher is supported */
-    if (!ktls_check_supported_cipher(cipher, ciph_ctx))
+    if (!ktls_check_supported_cipher(s, cipher, ciph_ctx))
         goto skip_ktls;
 
     bio = s->wbio;
 
     if (!ossl_assert(bio != NULL)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_CHANGE_CIPHER_STATE,
-                 ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
@@ -814,15 +786,14 @@ int tls13_change_cipher_state(SSL *s, int which)
         goto skip_ktls;
 
     /* configure kernel crypto structure */
-    if (!ktls_configure_crypto(cipher, s->version, ciph_ctx, 
+    if (!ktls_configure_crypto(s, cipher, ciph_ctx,
                                RECORD_LAYER_get_write_sequence(&s->rlayer),
-                               &crypto_info, NULL, iv, key))
+                               &crypto_info, NULL, iv, key, NULL, 0))
         goto skip_ktls;
 
     /* ktls works with user provided buffers directly */
     if (BIO_set_ktls(bio, &crypto_info, which & SSL3_CC_WRITE))
         ssl3_release_write_buffer(s);
-#  endif
 skip_ktls:
 # endif
 #endif

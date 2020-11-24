@@ -16,8 +16,6 @@
 # include <openssl/x509v3.h>
 # include "../x509/ext_dat.h"
 
-DEFINE_STACK_OF(ACCESS_DESCRIPTION)
-
 /*
  * OCSP extensions and a couple of CRL entry extensions
  */
@@ -205,7 +203,7 @@ static void *d2i_ocsp_nonce(void *a, const unsigned char **pp, long length)
  err:
     if ((pos == NULL) || (*pos != os))
         ASN1_OCTET_STRING_free(os);
-    OCSPerr(OCSP_F_D2I_OCSP_NONCE, ERR_R_MALLOC_FAILURE);
+    ERR_raise(ERR_LIB_OCSP, ERR_R_MALLOC_FAILURE);
     return NULL;
 }
 

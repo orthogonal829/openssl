@@ -249,6 +249,7 @@ static int dsa_keygen_test(void)
         || !TEST_ptr(settables = EVP_PKEY_CTX_settable_params(pg_ctx))
         || !TEST_ptr(OSSL_PARAM_locate_const(settables,
                                              OSSL_PKEY_PARAM_FFC_PBITS))
+        || !TEST_true(EVP_PKEY_CTX_set_dsa_paramgen_type(pg_ctx, "fips186_4"))
         || !TEST_true(EVP_PKEY_CTX_set_dsa_paramgen_bits(pg_ctx, 2048))
         || !TEST_true(EVP_PKEY_CTX_set_dsa_paramgen_q_bits(pg_ctx, 224))
         || !TEST_true(EVP_PKEY_CTX_set_dsa_paramgen_seed(pg_ctx, seed_data,
@@ -282,7 +283,7 @@ static int dsa_keygen_test(void)
                                              &pcount_out))
         || !TEST_int_eq(pcount_out, expected_c)
         || !TEST_false(EVP_PKEY_get_utf8_string_param(key,
-                                                      OSSL_PKEY_PARAM_DH_GROUP,
+                                                      OSSL_PKEY_PARAM_GROUP_NAME,
                                                       group_out,
                                                       sizeof(group_out), &len)))
         goto end;

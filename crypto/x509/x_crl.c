@@ -15,11 +15,6 @@
 #include <openssl/x509v3.h>
 #include "x509_local.h"
 
-DEFINE_STACK_OF(GENERAL_NAME)
-DEFINE_STACK_OF(GENERAL_NAMES)
-DEFINE_STACK_OF(X509_REVOKED)
-DEFINE_STACK_OF(X509_EXTENSION)
-
 static int X509_REVOKED_cmp(const X509_REVOKED *const *a,
                             const X509_REVOKED *const *b);
 static int setup_idp(X509_CRL *crl, ISSUING_DIST_POINT *idp);
@@ -344,7 +339,7 @@ int X509_CRL_add0_revoked(X509_CRL *crl, X509_REVOKED *rev)
     if (inf->revoked == NULL)
         inf->revoked = sk_X509_REVOKED_new(X509_REVOKED_cmp);
     if (inf->revoked == NULL || !sk_X509_REVOKED_push(inf->revoked, rev)) {
-        ASN1err(ASN1_F_X509_CRL_ADD0_REVOKED, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_ASN1, ERR_R_MALLOC_FAILURE);
         return 0;
     }
     inf->enc.modified = 1;
@@ -370,7 +365,7 @@ int X509_CRL_get0_by_cert(X509_CRL *crl, X509_REVOKED **ret, X509 *x)
 {
     if (crl->meth->crl_lookup)
         return crl->meth->crl_lookup(crl, ret,
-                                     X509_get_serialNumber(x),
+                                     X509_get0_serialNumber(x),
                                      X509_get_issuer_name(x));
     return 0;
 }
@@ -467,7 +462,7 @@ X509_CRL_METHOD *X509_CRL_METHOD_new(int (*crl_init) (X509_CRL *crl),
     X509_CRL_METHOD *m = OPENSSL_malloc(sizeof(*m));
 
     if (m == NULL) {
-        X509err(X509_F_X509_CRL_METHOD_NEW, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_X509, ERR_R_MALLOC_FAILURE);
         return NULL;
     }
     m->crl_init = crl_init;
@@ -493,4 +488,13 @@ void X509_CRL_set_meth_data(X509_CRL *crl, void *dat)
 void *X509_CRL_get_meth_data(X509_CRL *crl)
 {
     return crl->meth_data;
+}
+
+int x509_crl_set0_libctx(X509_CRL *x, OSSL_LIB_CTX *libctx, const char *propq)
+{
+    if (x != NULL) {
+        x->libctx = libctx;
+        x->propq = propq;
+    }
+    return 1;
 }
