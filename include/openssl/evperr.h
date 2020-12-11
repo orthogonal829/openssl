@@ -14,12 +14,9 @@
 
 # include <openssl/opensslconf.h>
 # include <openssl/symhacks.h>
+# include <openssl/cryptoerr_legacy.h>
 
 
-# ifdef  __cplusplus
-extern "C"
-# endif
-int ERR_load_EVP_strings(void);
 
 /*
  * EVP function codes.
@@ -72,6 +69,8 @@ int ERR_load_EVP_strings(void);
 #  define EVP_F_EVP_KEYEXCH_FROM_DISPATCH                  0
 #  define EVP_F_EVP_MAC_CTRL                               0
 #  define EVP_F_EVP_MAC_CTRL_STR                           0
+#  define EVP_F_EVP_MAC_CTX_DUP                            0
+#  define EVP_F_EVP_MAC_CTX_NEW                            0
 #  define EVP_F_EVP_MAC_INIT                               0
 #  define EVP_F_EVP_MD_BLOCK_SIZE                          0
 #  define EVP_F_EVP_MD_CTX_COPY_EX                         0
@@ -259,6 +258,7 @@ int ERR_load_EVP_strings(void);
 # define EVP_R_UNSUPPORTED_KEYLENGTH                      123
 # define EVP_R_UNSUPPORTED_KEY_DERIVATION_FUNCTION        124
 # define EVP_R_UNSUPPORTED_KEY_SIZE                       108
+# define EVP_R_UNSUPPORTED_KEY_TYPE                       224
 # define EVP_R_UNSUPPORTED_NUMBER_OF_ROUNDS               135
 # define EVP_R_UNSUPPORTED_PRF                            125
 # define EVP_R_UNSUPPORTED_PRIVATE_KEY_ALGORITHM          118

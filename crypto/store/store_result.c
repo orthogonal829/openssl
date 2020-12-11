@@ -274,8 +274,8 @@ static EVP_PKEY *try_key_value(struct extracted_param_data_st *data,
     }
 
     decoderctx =
-        OSSL_DECODER_CTX_new_by_EVP_PKEY(&pk, NULL, NULL, NULL, selection,
-                                         libctx, propq);
+        OSSL_DECODER_CTX_new_by_EVP_PKEY(&pk, "DER", NULL, data->data_type,
+                                         selection, libctx, propq);
     (void)OSSL_DECODER_CTX_set_passphrase_cb(decoderctx, cb, cbarg);
 
     /* No error if this couldn't be decoded */
@@ -366,8 +366,6 @@ static EVP_PKEY *try_key_value_legacy(struct extracted_param_data_st *data,
             *store_info_new = OSSL_STORE_INFO_new_PKEY;
 
         OPENSSL_free(new_der);
-        der = data->octet_data;
-        der_len = (long)data->octet_data_size;
     }
     CLEAR_ERR_MARK();
 

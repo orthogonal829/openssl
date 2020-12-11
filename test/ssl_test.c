@@ -15,8 +15,8 @@
 #include <openssl/ssl.h>
 #include <openssl/provider.h>
 
-#include "handshake_helper.h"
-#include "ssl_test_ctx.h"
+#include "helpers/handshake.h"
+#include "helpers/ssl_test_ctx.h"
 #include "testutil.h"
 
 static CONF *conf = NULL;
@@ -530,7 +530,7 @@ int setup_tests(void)
         return 0;
     }
 
-    if (!test_get_libctx(&libctx, &defctxnull, &thisprov, 1, USAGE))
+    if (!test_arg_libctx(&libctx, &defctxnull, &thisprov, 1, USAGE))
         return 0;
 
     ADD_ALL_TESTS(test_handshake, (int)num_tests);

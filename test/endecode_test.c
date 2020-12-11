@@ -22,6 +22,7 @@
 #include "internal/cryptlib.h"   /* ossl_assert */
 #include "crypto/pem.h"          /* For PVK and "blob" PEM headers */
 
+#include "helpers/predefined_dhparams.h"
 #include "testutil.h"
 
 #ifndef OPENSSL_NO_EC
@@ -39,16 +40,29 @@ static OSSL_PARAM *ec_explicit_tri_params_explicit = NULL;
 # endif
 #endif
 
+#if !defined(OPENSSL_NO_DH) || !defined(OPENSSL_NO_DSA) \
+    || !defined(OPENSSL_NO_EC)
 static EVP_PKEY *make_template(const char *type, OSSL_PARAM *genparams)
 {
     EVP_PKEY *pkey = NULL;
-    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_from_name(NULL, type, NULL);
+    EVP_PKEY_CTX *ctx = NULL;
+
+# ifndef OPENSSL_NO_DH
+    /*
+     * Use 512-bit DH(X) keys with predetermined parameters for efficiency,
+     * for testing only. Use a minimum key size of 2048 for security purposes.
+     */
+    if (strcmp(type, "DH") == 0)
+        return get_dh512(NULL);
+    if (strcmp(type, "X9.42 DH") == 0)
+        return get_dhx512(NULL);
+# endif
 
     /*
      * No real need to check the errors other than for the cascade
      * effect.  |pkey| will simply remain NULL if something goes wrong.
      */
-    (void)(ctx != NULL
+    (void)((ctx = EVP_PKEY_CTX_new_from_name(NULL, type, NULL)) != NULL
            && EVP_PKEY_paramgen_init(ctx) > 0
            && (genparams == NULL
                || EVP_PKEY_CTX_set_params(ctx, genparams) > 0)
@@ -57,6 +71,7 @@ static EVP_PKEY *make_template(const char *type, OSSL_PARAM *genparams)
 
     return pkey;
 }
+#endif
 
 static EVP_PKEY *make_key(const char *type, EVP_PKEY *template,
                           OSSL_PARAM *genparams)
@@ -183,7 +198,7 @@ static int encode_EVP_PKEY_prov(void **encoded, long *encoded_len,
     if (!TEST_ptr(ectx = OSSL_ENCODER_CTX_new_by_EVP_PKEY(pkey, selection,
                                                           output_type,
                                                           output_structure,
-                                                          NULL, NULL))
+                                                          NULL))
         || !TEST_int_gt(OSSL_ENCODER_CTX_get_num_encoders(ectx), 0)
         || (pass != NULL
             && !TEST_true(OSSL_ENCODER_CTX_set_passphrase(ectx, upass,
@@ -502,6 +517,8 @@ static int test_unprotected_via_PEM(const char *type, EVP_PKEY *key)
                               dump_pem, 0);
 }
 
+#if !defined(OPENSSL_NO_DH) || !defined(OPENSSL_NO_DSA) \
+    || !defined(OPENSSL_NO_EC)
 static int check_params_DER(const char *type, const void *data, size_t data_len)
 {
     const unsigned char *datap = data;
@@ -556,6 +573,7 @@ static int test_params_via_PEM(const char *type, EVP_PKEY *key)
                               test_text, check_params_PEM,
                               dump_pem, 0);
 }
+#endif /* ndef(OPENSSL_NO_DH) || ndef(OPENSSL_NO_DSA) || ndef(OPENSSL_NO_EC) */
 
 static int check_unprotected_legacy_PEM(const char *type,
                                         const void *data, size_t data_len)
@@ -1193,9 +1211,11 @@ int setup_tests(void)
 #ifndef OPENSSL_NO_DH
     MAKE_DOMAIN_KEYS(DH, "DH", NULL);
     MAKE_DOMAIN_KEYS(DHX, "X9.42 DH", NULL);
+    TEST_info("Generating keys...DH done");
 #endif
 #ifndef OPENSSL_NO_DSA
     MAKE_DOMAIN_KEYS(DSA, "DSA", DSA_params);
+    TEST_info("Generating keys...DSA done");
 #endif
 #ifndef OPENSSL_NO_EC
     MAKE_DOMAIN_KEYS(EC, "EC", EC_params);
@@ -1209,10 +1229,12 @@ int setup_tests(void)
     MAKE_KEYS(ED448, "ED448", NULL);
     MAKE_KEYS(X25519, "X25519", NULL);
     MAKE_KEYS(X448, "X448", NULL);
+    TEST_info("Generating keys...EC done");
 #endif
     MAKE_KEYS(RSA, "RSA", NULL);
+    TEST_info("Generating keys...RSA done");
     MAKE_KEYS(RSA_PSS, "RSA-PSS", RSA_PSS_params);
-    TEST_info("Generating key... done");
+    TEST_info("Generating keys...RSA_PSS done");
 
     if (ok) {
 #ifndef OPENSSL_NO_DH

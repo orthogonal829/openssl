@@ -47,10 +47,8 @@ const OPTIONS dhparam_options[] = {
     OPT_SECTION("General"),
     {"help", OPT_HELP, '-', "Display this summary"},
     {"check", OPT_CHECK, '-', "Check the DH parameters"},
-#ifndef OPENSSL_NO_DSA
     {"dsaparam", OPT_DSAPARAM, '-',
      "Read or generate DSA parameters, convert to DH"},
-#endif
 #ifndef OPENSSL_NO_ENGINE
     {"engine", OPT_ENGINE, 's', "Use engine e, possibly a hardware device"},
 #endif
@@ -124,11 +122,7 @@ int dhparam_main(int argc, char **argv)
             text = 1;
             break;
         case OPT_DSAPARAM:
-# ifdef OPENSSL_NO_DEPRECATED_3_0
-            BIO_printf(bio_err, "The dsaparam option is deprecated.\n");
-# else
             dsaparam = 1;
-# endif
             break;
         case OPT_2:
             g = 2;
@@ -329,7 +323,7 @@ int dhparam_main(int argc, char **argv)
                                              OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS,
                                              outformat == FORMAT_ASN1
                                              ? "DER" : "PEM",
-                                             NULL, NULL, NULL);
+                                             NULL, NULL);
 
         if (ectx == NULL || !OSSL_ENCODER_to_bio(ectx, out)) {
             OSSL_ENCODER_CTX_free(ectx);

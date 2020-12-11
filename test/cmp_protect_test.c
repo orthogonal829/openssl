@@ -9,7 +9,7 @@
  * https://www.openssl.org/source/license.html
  */
 
-#include "cmp_testlib.h"
+#include "helpers/cmp_testlib.h"
 
 static const char *ir_protected_f;
 static const char *ir_unprotected_f;
@@ -538,7 +538,7 @@ int setup_tests(void)
         return 0;
     }
 
-    if (!test_get_libctx(&libctx, &default_null_provider, &provider, 10, USAGE))
+    if (!test_arg_libctx(&libctx, &default_null_provider, &provider, 10, USAGE))
         return 0;
 
     if (!TEST_ptr(loadedkey = load_pem_key(server_key_f, libctx))

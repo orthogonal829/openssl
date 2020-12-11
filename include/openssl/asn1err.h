@@ -14,12 +14,9 @@
 
 # include <openssl/opensslconf.h>
 # include <openssl/symhacks.h>
+# include <openssl/cryptoerr_legacy.h>
 
 
-# ifdef  __cplusplus
-extern "C"
-# endif
-int ERR_load_ASN1_strings(void);
 
 /*
  * ASN1 function codes.
@@ -150,6 +147,7 @@ int ERR_load_ASN1_strings(void);
 # define ASN1_R_ASN1_SIG_PARSE_ERROR                      204
 # define ASN1_R_AUX_ERROR                                 100
 # define ASN1_R_BAD_OBJECT_HEADER                         102
+# define ASN1_R_BAD_TEMPLATE                              230
 # define ASN1_R_BMPSTRING_IS_WRONG_LENGTH                 214
 # define ASN1_R_BN_LIB                                    105
 # define ASN1_R_BOOLEAN_IS_WRONG_LENGTH                   106

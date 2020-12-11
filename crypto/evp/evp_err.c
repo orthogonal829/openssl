@@ -10,6 +10,7 @@
 
 #include <openssl/err.h>
 #include <openssl/evperr.h>
+#include "crypto/evperr.h"
 
 #ifndef OPENSSL_NO_ERR
 
@@ -175,6 +176,8 @@ static const ERR_STRING_DATA EVP_str_reasons[] = {
     "unsupported key derivation function"},
     {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_UNSUPPORTED_KEY_SIZE),
     "unsupported key size"},
+    {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_UNSUPPORTED_KEY_TYPE),
+    "unsupported key type"},
     {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_UNSUPPORTED_NUMBER_OF_ROUNDS),
     "unsupported number of rounds"},
     {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_UNSUPPORTED_PRF), "unsupported prf"},
@@ -196,7 +199,7 @@ static const ERR_STRING_DATA EVP_str_reasons[] = {
 
 #endif
 
-int ERR_load_EVP_strings(void)
+int err_load_EVP_strings_int(void)
 {
 #ifndef OPENSSL_NO_ERR
     if (ERR_reason_error_string(EVP_str_reasons[0].error) == NULL)

@@ -23,6 +23,23 @@ OpenSSL 3.0
 
 ### Changes between 1.1.1 and 3.0 [xx XXX xxxx]
 
+ * Deprecated all the libcrypto and libssl error string loading
+   functions: ERR_load_ASN1_strings(), ERR_load_ASYNC_strings(),
+   ERR_load_BIO_strings(), ERR_load_BN_strings(), ERR_load_BUF_strings(),
+   ERR_load_CMS_strings(), ERR_load_COMP_strings(), ERR_load_CONF_strings(),
+   ERR_load_CRYPTO_strings(), ERR_load_CT_strings(), ERR_load_DH_strings(),
+   ERR_load_DSA_strings(), ERR_load_EC_strings(), ERR_load_ENGINE_strings(),
+   ERR_load_ERR_strings(), ERR_load_EVP_strings(), ERR_load_KDF_strings(),
+   ERR_load_OBJ_strings(), ERR_load_OCSP_strings(), ERR_load_PEM_strings(),
+   ERR_load_PKCS12_strings(), ERR_load_PKCS7_strings(), ERR_load_RAND_strings(),
+   ERR_load_RSA_strings(), ERR_load_OSSL_STORE_strings(), ERR_load_TS_strings(),
+   ERR_load_UI_strings(), ERR_load_X509_strings(), ERR_load_X509V3_strings().
+
+   Calling these functions is not necessary since OpenSSL 1.1.0, as OpenSSL
+   now loads error strings automatically.
+
+   *Richard Levitte*
+
  * The functions SSL_CTX_set_tmp_dh_callback and SSL_set_tmp_dh_callback, as
    well as the macros SSL_CTX_set_tmp_dh() and SSL_set_tmp_dh() have been
    deprecated. These are used to set the Diffie-Hellman (DH) parameters that
@@ -449,9 +466,9 @@ OpenSSL 3.0
  * All of the low level DH functions have been deprecated including:
 
    DH_OpenSSL, DH_set_default_method, DH_get_default_method, DH_set_method,
-   DH_new_method, DH_size, DH_security_bits, DH_get_ex_new_index,
-   DH_set_ex_data, DH_get_ex_data, DH_generate_parameters_ex,
-   DH_check_params_ex, DH_check_ex, DH_check_pub_key_ex,
+   DH_new_method, DH_new, DH_free, DH_up_ref, DH_bits, DH_set0_pqg, DH_size,
+   DH_security_bits, DH_get_ex_new_index, DH_set_ex_data, DH_get_ex_data,
+   DH_generate_parameters_ex, DH_check_params_ex, DH_check_ex, DH_check_pub_key_ex,
    DH_check, DH_check_pub_key, DH_generate_key, DH_compute_key,
    DH_compute_key_padded, DHparams_print_fp, DHparams_print, DH_get_nid,
    DH_KDF_X9_42, DH_get0_engine, DH_meth_new, DH_meth_free, DH_meth_dup,
@@ -466,7 +483,18 @@ OpenSSL 3.0
    time.  Instead applications should use L<EVP_PKEY_derive_init(3)>
    and L<EVP_PKEY_derive(3)>.
 
-   *Paul Dale*
+   Additionally functions that read and write DH objects such as d2i_DHparams,
+   i2d_DHparams, PEM_read_DHparam, PEM_write_DHparams and other similar
+   functions have also been deprecated. Applications should instead use the
+   OSSL_DECODER and OSSL_ENCODER APIs to read and write DH files.
+
+   Finaly functions that assign or obtain DH objects from an EVP_PKEY such as
+   EVP_PKEY_assign_DH(), EVP_PKEY_get0_DH, EVP_PKEY_get1_DH, EVP_PKEY_set1_DH
+   are also deprecated. Applications should instead either read or write an
+   EVP_PKEY directly using the OSSL_DECODER and OSSL_ENCODER APIs. Or load an
+   EVP_PKEY directly from DH data using EVP_PKEY_fromdata().
+
+   *Paul Dale and Matt Caswell*
 
  * All of the low level DSA functions have been deprecated including:
 
@@ -835,14 +863,17 @@ OpenSSL 3.0
  * Added ERR functionality to give callers access to the stored function
    names that have replaced the older function code based functions.
 
-   New functions are ERR_get_error_func(), ERR_peek_error_func(),
-   ERR_peek_last_error_func(), ERR_get_error_data(), ERR_peek_error_data(),
-   ERR_peek_last_error_data(), ERR_get_error_all(), ERR_peek_error_all()
-   and ERR_peek_last_error_all().
+   New functions are ERR_peek_error_func(), ERR_peek_last_error_func(),
+   ERR_peek_error_data(), ERR_peek_last_error_data(), ERR_get_error_all(),
+   ERR_peek_error_all() and ERR_peek_last_error_all().
 
-   These functions have become deprecated: ERR_get_error_line_data(),
-   ERR_peek_error_line_data(), ERR_peek_last_error_line_data() and
-   ERR_func_error_string().
+   These functions have become deprecated: ERR_get_error_line(),
+   ERR_get_error_line_data(), ERR_peek_error_line_data(),
+   ERR_peek_last_error_line_data() and ERR_func_error_string().
+
+   Users are recommended to use ERR_get_error_all(), or to pick information
+   with ERR_peek functions and finish off with getting the error code by using
+   ERR_get_error().
 
    *Richard Levitte*
 
@@ -1308,7 +1339,19 @@ OpenSSL 1.1.1
 
 ### Changes between 1.1.1h and 1.1.1i [xx XXX xxxx]
 
- *
+ * Fixed NULL pointer deref in the GENERAL_NAME_cmp function
+   This function could crash if both GENERAL_NAMEs contain an EDIPARTYNAME.
+    If an attacker can control both items being compared  then this could lead
+    to a possible denial of service attack. OpenSSL itself uses the
+    GENERAL_NAME_cmp function for two purposes:
+    1) Comparing CRL distribution point names between an available CRL and a
+       CRL distribution point embedded in an X509 certificate
+    2) When verifying that a timestamp response token signer matches the
+       timestamp authority name (exposed via the API functions
+       TS_RESP_verify_response and TS_RESP_verify_token)
+   ([CVE-2020-1971])
+
+   *Matt Caswell*
 
 ### Changes between 1.1.1g and 1.1.1h [22 Sep 2020]
 
@@ -18631,6 +18674,7 @@ ndif
 
 <!-- Links -->
 
+[CVE-2020-1971]: https://www.openssl.org/news/vulnerabilities.html#CVE-2020-1971
 [CVE-2020-1967]: https://www.openssl.org/news/vulnerabilities.html#CVE-2020-1967
 [CVE-2019-1563]: https://www.openssl.org/news/vulnerabilities.html#CVE-2019-1563
 [CVE-2019-1559]: https://www.openssl.org/news/vulnerabilities.html#CVE-2019-1559

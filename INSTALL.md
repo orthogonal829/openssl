@@ -141,7 +141,7 @@ Quick Installation Guide
 If you just want to get OpenSSL installed without bothering too much
 about the details, here is the short version of how to build and install
 OpenSSL.  If any of the following steps fails, please consult the
-[Installation in Detail](#installation-in-detail) section below.
+[Installation in Detail](#installation-steps-in-detail) section below.
 
 Building OpenSSL
 ----------------
@@ -395,7 +395,7 @@ ZLib Flags
     --with-zlib-include=DIR
 
 The directory for the location of the zlib include file.  This option is only
-necessary if [enable-zlib](#enable-zlib) is used and the include file is not
+necessary if [zlib](#zlib) is used and the include file is not
 already on the system include path.
 
 ### with-zlib-lib
@@ -576,6 +576,11 @@ Enabling this option demands extra care.  For any compiler flag given directly
 as configuration option, you must ensure that it's valid for both the C and
 the C++ compiler.  If not, the C++ build test will most likely break.  As an
 alternative, you can use the language specific variables, `CFLAGS` and `CXXFLAGS`.
+
+### no-bulk
+
+Build only some minimal set of features.
+This is a developer option used internally for CI build tests of the project.
 
 ### no-capieng
 

@@ -9,7 +9,7 @@
  * https://www.openssl.org/source/license.html
  */
 
-#include "cmp_testlib.h"
+#include "helpers/cmp_testlib.h"
 #include "../crypto/crmf/crmf_local.h" /* for manipulating POPO signature */
 
 static const char *server_f;
@@ -600,7 +600,7 @@ int setup_tests(void)
         return 0;
     }
 
-    if (!test_get_libctx(&libctx, &default_null_provider, &provider, 14, USAGE))
+    if (!test_arg_libctx(&libctx, &default_null_provider, &provider, 14, USAGE))
         return 0;
 
     /* Load certificates for cert chain */

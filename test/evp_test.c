@@ -26,7 +26,9 @@
 #include "internal/nelem.h"
 #include "crypto/evp.h"
 #include "testutil.h"
-#include "evp_test.h"
+
+typedef struct evp_test_buffer_st EVP_TEST_BUFFER;
+DEFINE_STACK_OF(EVP_TEST_BUFFER)
 
 #define AAD_NUM 4
 
@@ -2422,11 +2424,12 @@ static int kdf_test_ctrl(EVP_TEST *t, EVP_KDF_CTX *kctx,
             t->skip = 1;
         }
     }
-    if (p != NULL && strcmp(name, "cipher") == 0) {
-        if (is_cipher_disabled(p)) {
-            TEST_info("skipping, '%s' is disabled", p);
-            t->skip = 1;
-        }
+    if (p != NULL
+        && (strcmp(name, "cipher") == 0
+            || strcmp(name, "cekalg") == 0)
+        && is_cipher_disabled(p)) {
+        TEST_info("skipping, '%s' is disabled", p);
+        t->skip = 1;
     }
     OPENSSL_free(name);
     return 1;
@@ -3587,22 +3590,12 @@ int setup_tests(void)
     }
 
     /*
+     * Load the provider via configuration into the created library context.
      * Load the 'null' provider into the default library context to ensure that
      * the the tests do not fallback to using the default provider.
      */
-    prov_null = OSSL_PROVIDER_load(NULL, "null");
-    if (prov_null == NULL) {
-        opt_printf_stderr("Failed to load null provider into default libctx\n");
+    if (!test_get_libctx(&libctx, &prov_null, config_file, NULL, NULL))
         return 0;
-    }
-
-    /* load the provider via configuration into the created library context */
-    libctx = OSSL_LIB_CTX_new();
-    if (libctx == NULL
-        || !OSSL_LIB_CTX_load_config(libctx, config_file)) {
-        TEST_error("Failed to load config %s\n", config_file);
-        return 0;
-    }
 
     n = test_get_argument_count();
     if (n == 0)
@@ -3707,10 +3700,6 @@ static int is_kdf_disabled(const char *name)
     if (STR_ENDS_WITH(name, "SCRYPT"))
         return 1;
 #endif
-#ifdef OPENSSL_NO_CMS
-    if (strcasecmp(name, "X942KDF") == 0)
-        return 1;
-#endif /* OPENSSL_NO_CMS */
     return 0;
 }
 
@@ -3742,6 +3731,8 @@ static int is_cipher_disabled(const char *name)
 #endif
 #ifdef OPENSSL_NO_DES
     if (STR_STARTS_WITH(name, "DES"))
+        return 1;
+    if (STR_ENDS_WITH(name, "3DESwrap"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_OCB
