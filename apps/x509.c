@@ -21,9 +21,7 @@
 #include <openssl/x509v3.h>
 #include <openssl/objects.h>
 #include <openssl/pem.h>
-#ifndef OPENSSL_NO_RSA
-# include <openssl/rsa.h>
-#endif
+#include <openssl/rsa.h>
 #ifndef OPENSSL_NO_DSA
 # include <openssl/dsa.h>
 #endif
@@ -490,12 +488,11 @@ int x509_main(int argc, char **argv)
                 goto opthelp;
         }
     }
+
+    /* No extra arguments. */
     argc = opt_num_rest();
-    argv = opt_rest();
-    if (argc != 0) {
-        BIO_printf(bio_err, "%s: Unknown parameter %s\n", prog, argv[0]);
+    if (argc != 0)
         goto opthelp;
-    }
 
     if (!app_passwd(passinarg, NULL, &passin, NULL)) {
         BIO_printf(bio_err, "Error getting password\n");
@@ -756,7 +753,6 @@ int x509_main(int argc, char **argv)
                     goto end;
                 }
                 BIO_printf(out, "Modulus=");
-#ifndef OPENSSL_NO_RSA
                 if (EVP_PKEY_is_a(pkey, "RSA")) {
                     BIGNUM *n;
 
@@ -764,16 +760,14 @@ int x509_main(int argc, char **argv)
                     EVP_PKEY_get_bn_param(pkey, "n", &n);
                     BN_print(out, n);
                     BN_free(n);
-                } else
-#endif
-#ifndef OPENSSL_NO_DSA
-                if (EVP_PKEY_id(pkey) == EVP_PKEY_DSA) {
-                    const BIGNUM *dsapub = NULL;
-                    DSA_get0_key(EVP_PKEY_get0_DSA(pkey), &dsapub, NULL);
+                } else if (EVP_PKEY_is_a(pkey, "DSA")) {
+                    BIGNUM *dsapub;
+
+                    /* Every DSA key has an 'pub' */
+                    EVP_PKEY_get_bn_param(pkey, "pub", &dsapub);
                     BN_print(out, dsapub);
-                } else
-#endif
-                {
+                    BN_free(dsapub);
+                } else {
                     BIO_printf(out, "Wrong Algorithm type");
                 }
                 BIO_printf(out, "\n");

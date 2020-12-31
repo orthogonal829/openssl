@@ -556,7 +556,7 @@ int EVP_EncryptUpdate(EVP_CIPHER_CTX *ctx, unsigned char *out, int *outl,
     if (ctx->cipher->prov == NULL)
         goto legacy;
 
-    blocksize = EVP_CIPHER_CTX_block_size(ctx);
+    blocksize = ctx->cipher->block_size;
 
     if (ctx->cipher->cupdate == NULL  || blocksize < 1) {
         ERR_raise(ERR_LIB_EVP, EVP_R_UPDATE_ERROR);
@@ -1470,6 +1470,12 @@ static void *evp_cipher_from_dispatch(const int name_id,
     if (prov != NULL)
         ossl_provider_up_ref(prov);
 
+    if (!evp_cipher_cache_constants(cipher)) {
+        EVP_CIPHER_free(cipher);
+        ERR_raise(ERR_LIB_EVP, EVP_R_CACHE_CONSTANTS_FAILED);
+        cipher = NULL;
+    }
+
     return cipher;
 }
 
@@ -1491,10 +1497,6 @@ EVP_CIPHER *EVP_CIPHER_fetch(OSSL_LIB_CTX *ctx, const char *algorithm,
                           evp_cipher_from_dispatch, evp_cipher_up_ref,
                           evp_cipher_free);
 
-    if (cipher != NULL && !evp_cipher_cache_constants(cipher)) {
-        EVP_CIPHER_free(cipher);
-        cipher = NULL;
-    }
     return cipher;
 }
 
